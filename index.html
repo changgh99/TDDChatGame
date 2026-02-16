@@ -45,7 +45,7 @@
 
         // รายชื่อ Admin (แก้ไข/เพิ่มชื่อได้ที่นี่)
         const adminList = ['mobyex'];
-        const isAdmin = adminList.includes(myName);
+        const isAdmin = adminList.includes(myName); && params.get('adminKey') === '8298';
 
         async function loadMsgs() {
             const { data, error } = await _supabase
@@ -121,3 +121,4 @@
     </script>
 </body>
 </html>
+
