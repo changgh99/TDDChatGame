@@ -7,14 +7,25 @@
     <style>
         body { font-family: 'Tahoma', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #eee; }
         #log { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px; }
-        .m { background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd; align-self: flex-start; width: 90%; box-sizing: border-box; position: relative; }
-        .u { font-weight: bold; color: #d32f2f; font-size: 11px; display: block; }
-        .t { font-size: 13px; color: #333; }
+        .m { background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd; align-self: flex-start; width: 92%; box-sizing: border-box; position: relative; }
+        .u { font-weight: bold; color: #d32f2f; font-size: 11px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .t { font-size: 13px; color: #333; word-break: break-word; }
         #input-area { display: flex; padding: 10px; background: white; border-top: 1px solid #ccc; gap: 5px; }
         input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 3px; outline: none; }
-        button { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 3px; cursor: pointer; }
-        .del-btn { color: #ccc; font-size: 10px; cursor: pointer; float: right; border: none; background: none; }
-        .del-btn:hover { color: red; }
+        button#send-btn { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        
+        /* สไตล์ปุ่ม [x] ลบข้อความ */
+        .del-btn { 
+            color: #ff4d4d; 
+            font-size: 12px; 
+            cursor: pointer; 
+            border: none; 
+            background: none; 
+            font-weight: bold;
+            padding: 0 5px;
+            line-height: 1;
+        }
+        .del-btn:hover { color: #b30000; scale: 1.2; }
     </style>
 </head>
 <body>
@@ -32,7 +43,7 @@
         const params = new URLSearchParams(window.location.search);
         const myName = params.get('user') || 'Guest';
 
-        // รายชื่อ Admin (สามารถเพิ่มชื่อภายหลังได้ใน List นี้)
+        // รายชื่อ Admin
         const adminList = ['changtdb', 'mobyex'];
         const isAdmin = adminList.includes(myName);
 
@@ -47,14 +58,14 @@
             
             const log = document.getElementById('log');
             const html = data.reverse().map(m => {
-                // เช็คสิทธิ์การลบ (เป็นเจ้าของ หรือ เป็นแอดมิน)
                 const canDelete = (m.username === myName) || isAdmin;
+                const isMsgAdmin = adminList.includes(m.username);
                 
                 return `
                     <div class="m">
                         <span class="u">
-                            ${m.username} ${adminList.includes(m.username) ? '⭐' : ''}
-                            ${canDelete ? `<button class="del-btn" onclick="deleteMsg(${m.id})">ลบ</button>` : ''}
+                            <span>${m.username} ${isMsgAdmin ? '⭐' : ''}</span>
+                            ${canDelete ? `<button class="del-btn" onclick="deleteMsg(${m.id})">[x]</button>` : ''}
                         </span>
                         <span class="t">${m.text}</span>
                     </div>
@@ -82,18 +93,22 @@
             }
         }
 
-        // ฟังก์ชันลบข้อความ
+        // ฟังก์ชันลบข้อความ (ลบทันที ไม่ต้องยืนยัน)
         async function deleteMsg(id) {
-            if (!confirm('คุณต้องการลบข้อความนี้ใช่หรือไม่?')) return;
-            const { error } = await _supabase.from('messages').delete().eq('id', id);
-            if (error) alert("ลบไม่สำเร็จ: " + error.message);
-            // ไม่ต้องสั่งโหลดซ้ำ เพราะ Realtime จะจัดการให้เมื่อมีการ DELETE
+            const { error } = await _supabase
+                .from('messages')
+                .delete()
+                .eq('id', id);
+            
+            if (error) {
+                console.error("ลบไม่สำเร็จ:", error.message);
+            }
         }
 
         document.getElementById('send-btn').onclick = send;
         document.getElementById('msg').onkeypress = (e) => { if(e.key === 'Enter') send(); };
 
-        // ระบบ Realtime (แก้ event เป็น '*' เพื่อรองรับทั้ง INSERT และ DELETE)
+        // ระบบ Realtime (รับทุก Event ทั้ง INSERT และ DELETE)
         _supabase.channel('public:messages')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
                 loadMsgs();
