@@ -5,16 +5,26 @@
     <title>TDD P2P Chat</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        :root { --chat-font-size: 13px; }
         body { font-family: 'Tahoma', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #eee; }
+        
+        /* แถบตั้งค่าด้านบน */
+        #settings-bar { 
+            background: #333; padding: 5px 10px; display: flex; justify-content: flex-end; 
+            border-bottom: 1px solid #000; align-items: center; gap: 8px;
+        }
+        #settings-bar label { color: white; font-size: 11px; }
+        #font-size-select { font-size: 11px; cursor: pointer; border-radius: 3px; border: none; }
+
         #log { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px; }
         .m { background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd; align-self: flex-start; width: 92%; box-sizing: border-box; position: relative; }
         .u { font-weight: bold; color: #d32f2f; font-size: 11px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
-        
-        /* เพิ่มสไตล์ให้ชื่อกดได้ */
         .u-name { cursor: pointer; text-decoration: none; }
         .u-name:hover { text-decoration: underline; color: #000; }
 
-        .t { font-size: 13px; color: #333; word-break: break-word; }
+        /* ใช้ Variable สำหรับขนาดตัวอักษร */
+        .t { font-size: var(--chat-font-size); color: #333; word-break: break-word; }
+        
         #input-area { display: flex; padding: 10px; background: white; border-top: 1px solid #ccc; gap: 5px; }
         input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 3px; outline: none; }
         button#send-btn { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 3px; cursor: pointer; }
@@ -23,6 +33,14 @@
     </style>
 </head>
 <body>
+    <div id="settings-bar">
+        <label>ขนาดตัวอักษร:</label>
+        <select id="font-size-select" onchange="updateFontSize(this.value)">
+            <option value="11px">เล็ก</option>
+            <option value="13px" selected>กลาง</option>
+            <option value="16px">ใหญ่</option>
+        </select>
+    </div>
     <div id="log"></div>
     <div id="input-area">
         <input type="text" id="msg" placeholder="พิมพ์ข้อความ..." autocomplete="off">
@@ -36,34 +54,27 @@
         
         const params = new URLSearchParams(window.location.search);
         const myName = params.get('user') || 'Guest';
-
         const adminList = ['mobyex', 'changtdb'];
         const isAdmin = adminList.includes(myName) && btoa(params.get('adminKey') || "") === "ODI5OA==";
 
-        // ฟังก์ชันสำหรับจัดการการ Quote
+        function updateFontSize(size) {
+            document.documentElement.style.setProperty('--chat-font-size', size);
+        }
+
         function quoteMsg(user, text) {
             const input = document.getElementById('msg');
-            // ทำความสะอาดข้อความเดิม (ลบปุ่มลบหรืออักขระแปลกๆ ถ้ามี)
             const cleanText = text.replace(/\[x\]/g, '').trim();
-            // ใส่รูปแบบตามที่คุณต้องการ
             input.value = `${user} : ${cleanText} [#] `;
             input.focus();
         }
 
         async function loadMsgs() {
-            const { data, error } = await _supabase
-                .from('messages')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(50);
-            
+            const { data, error } = await _supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(50);
             if (error) return console.error(error);
-            
             const log = document.getElementById('log');
-            const html = data.reverse().map(m => {
+            log.innerHTML = data.reverse().map(m => {
                 const canDelete = (m.username === myName) || isAdmin;
                 const isMsgAdmin = adminList.includes(m.username);
-                
                 return `
                     <div class="m">
                         <span class="u">
@@ -76,8 +87,6 @@
                     </div>
                 `;
             }).join('');
-            
-            log.innerHTML = html;
             log.scrollTop = log.scrollHeight;
         }
 
@@ -91,17 +100,12 @@
         }
 
         async function deleteMsg(id) {
-            const { error } = await _supabase.from('messages').delete().eq('id', id);
-            if (error) console.error("ลบไม่สำเร็จ:", error.message);
+            await _supabase.from('messages').delete().eq('id', id);
         }
 
         document.getElementById('send-btn').onclick = send;
         document.getElementById('msg').onkeypress = (e) => { if(e.key === 'Enter') send(); };
-
-        _supabase.channel('public:messages')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { loadMsgs(); })
-            .subscribe();
-
+        _supabase.channel('public:messages').on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { loadMsgs(); }).subscribe();
         loadMsgs();
     </script>
 </body>
