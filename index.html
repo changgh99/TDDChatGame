@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>TDD P2P Chat</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Tahoma', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #eee; }
+        #log { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px; }
+        .m { background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd; align-self: flex-start; width: 90%; box-sizing: border-box; }
+        .u { font-weight: bold; color: #d32f2f; font-size: 11px; display: block; }
+        .t { font-size: 13px; color: #333; }
+        #input-area { display: flex; padding: 10px; background: white; border-top: 1px solid #ccc; gap: 5px; }
+        input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 3px; outline: none; }
+        button { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="log"></div>
+    <div id="input-area">
+        <input type="text" id="msg" placeholder="พิมพ์ข้อความ..." autocomplete="off">
+        <button id="send-btn">ส่ง</button>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://vmvendnvkkbyveoktrha.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_PkFrBJmhLlSP894nrW8-tg_kYCsQpvq';
+
+        // แก้ไขจุดนี้: ใช้ชื่อตัวแปรที่ไม่ซ้ำกับชื่อ Library
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        const params = new URLSearchParams(window.location.search);
+        const myName = params.get('user') || 'Guest';
+
+        async function loadMsgs() {
+            const { data, error } = await _supabase
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(50);
+            
+            if (error) return console.error(error);
+            
+            const log = document.getElementById('log');
+            const html = data.reverse().map(m => `
+                <div class="m">
+                    <span class="u">${m.username}</span>
+                    <span class="t">${m.text}</span>
+                </div>
+            `).join('');
+            
+            log.innerHTML = html;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function send() {
+            const input = document.getElementById('msg');
+            const text = input.value.trim();
+            if (!text) return;
+            
+            const { error } = await _supabase
+                .from('messages')
+                .insert([{ username: myName, text: text }]);
+            
+            if (error) {
+                alert("ส่งไม่ได้: " + error.message);
+            } else {
+                input.value = '';
+                loadMsgs();
+            }
+        }
+
+        document.getElementById('send-btn').onclick = send;
+        document.getElementById('msg').onkeypress = (e) => { if(e.key === 'Enter') send(); };
+
+        _supabase.channel('public:messages')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+                loadMsgs();
+            })
+            .subscribe();
+
+        loadMsgs();
+    </script>
+</body>
+</html>
