@@ -21,22 +21,22 @@
         .u-name { cursor: pointer; text-decoration: none; }
         .u-name:hover { text-decoration: underline; color: #000; }
 
-        /* ปรับให้รองรับการแสดงผลหลายบรรทัด */
+        /* ปรับให้ข้อความในแชทแสดงการเว้นบรรทัด (white-space) */
         .t { font-size: var(--chat-font-size); color: #333; word-break: break-word; white-space: pre-wrap; }
         
         #input-area { display: flex; padding: 10px; background: white; border-top: 1px solid #ccc; gap: 5px; align-items: flex-end; }
         
-        /* เปลี่ยนจาก input เป็น textarea และตั้งค่าขยายตัว */
+        /* ปรับแต่ง Textarea */
         textarea#msg { 
             flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 3px; 
             outline: none; resize: none; font-family: inherit; font-size: 14px;
-            max-height: 200px; /* จำกัดความสูงสูงสุดไว้ที่ประมาณ 10 บรรทัด */
-            min-height: 20px;
+            max-height: 200px; /* ประมาณ 10 บรรทัด */
+            min-height: 36px;
             line-height: 20px;
-            overflow-y: auto;
+            box-sizing: border-box;
         }
         
-        button#send-btn { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 3px; cursor: pointer; height: 38px; }
+        button#send-btn { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 3px; cursor: pointer; height: 36px; }
         .del-btn { color: #ff4d4d; font-size: 12px; cursor: pointer; border: none; background: none; font-weight: bold; padding: 0 5px; line-height: 1; }
         .del-btn:hover { color: #b30000; transform: scale(1.2); }
     </style>
@@ -52,7 +52,7 @@
     </div>
     <div id="log"></div>
     <div id="input-area">
-        <textarea id="msg" placeholder="พิมพ์ข้อความ... (Enter ส่ง / Alt+Enter ขึ้นบรรทัดใหม่)" rows="1"></textarea>
+        <textarea id="msg" placeholder="พิมพ์ข้อความ... (Shift+Enter ขึ้นบรรทัดใหม่)" maxlength="2000" rows="1"></textarea>
         <button id="send-btn">ส่ง</button>
     </div>
 
@@ -68,9 +68,9 @@
 
         const msgInput = document.getElementById('msg');
 
-        // ฟังก์ชันขยายความสูง Textarea อัตโนมัติ
+        // ฟังก์ชันขยายช่องพิมพ์อัตโนมัติ
         msgInput.addEventListener('input', function() {
-            this.style.height = 'auto';
+            this.style.height = '36px'; 
             this.style.height = (this.scrollHeight) + 'px';
         });
 
@@ -80,9 +80,9 @@
 
         function quoteMsg(user, text) {
             const cleanText = text.replace(/\[x\]/g, '').trim();
-            msgInput.value = `${user} : ${cleanText} [#] \n`; // เพิ่มขึ้นบรรทัดใหม่ให้หลัง quote
+            msgInput.value = `${user} : ${cleanText} [#] \n` + msgInput.value;
             msgInput.focus();
-            msgInput.dispatchEvent(new Event('input')); // บังคับให้ขยายความสูง
+            msgInput.dispatchEvent(new Event('input')); // อัปเดตความสูงหลัง quote
         }
 
         async function loadMsgs() {
@@ -91,12 +91,11 @@
             const log = document.getElementById('log');
             log.innerHTML = data.reverse().map(m => {
                 const canDelete = (m.username === myName) || isAdmin;
-                const isMsgAdmin = adminList.includes(m.username);
                 return `
                     <div class="m">
                         <span class="u">
                             <span class="u-name" onclick="quoteMsg('${m.username}', '${m.text.replace(/'/g, "\\'").replace(/\n/g, " ")}')">
-                                ${m.username} ${isMsgAdmin ? '⭐' : ''}
+                                ${m.username} ${adminList.includes(m.username) ? '⭐' : ''}
                             </span>
                             ${canDelete ? `<button class="del-btn" onclick="deleteMsg(${m.id})">[x]</button>` : ''}
                         </span>
@@ -111,10 +110,11 @@
             const text = msgInput.value.trim();
             if (!text) return;
             const { error } = await _supabase.from('messages').insert([{ username: myName, text: text }]);
-            if (error) alert("ส่งไม่ได้: " + error.message);
-            else { 
+            if (error) {
+                alert("ส่งไม่ได้: " + error.message);
+            } else { 
                 msgInput.value = ''; 
-                msgInput.style.height = 'auto'; // คืนค่าความสูง
+                msgInput.style.height = '36px';
                 loadMsgs(); 
             }
         }
@@ -125,15 +125,14 @@
 
         document.getElementById('send-btn').onclick = send;
 
-        // จัดการปุ่ม Enter และ Alt+Enter
+        // จัดการเรื่องการกดปุ่ม Enter
         msgInput.onkeydown = (e) => {
             if (e.key === 'Enter') {
-                if (e.altKey) {
-                    // ถ้ากด Alt + Enter ให้ขึ้นบรรทัดใหม่ (พฤติกรรมปกติของ textarea คือขึ้นบรรทัดใหม่ด้วย Enter อยู่แล้ว 
-                    // แต่เราต้องเขียน Logic สลับกันเพื่อให้ Enter เฉยๆ เป็นการส่ง)
-                    return true; 
+                if (e.shiftKey) {
+                    // ถ้ากด Shift + Enter ให้ขึ้นบรรทัดใหม่ (ปล่อยผ่านตามปกติ)
+                    return true;
                 } else {
-                    // ถ้ากด Enter เฉยๆ ให้ส่งข้อความ
+                    // ถ้ากด Enter เฉยๆ ให้ทำการส่ง
                     e.preventDefault();
                     send();
                 }
