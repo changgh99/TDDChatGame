@@ -13,18 +13,7 @@
         #input-area { display: flex; padding: 10px; background: white; border-top: 1px solid #ccc; gap: 5px; }
         input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 3px; outline: none; }
         button#send-btn { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 3px; cursor: pointer; }
-        
-        /* สไตล์ปุ่ม [x] ลบข้อความ */
-        .del-btn { 
-            color: #ff4d4d; 
-            font-size: 12px; 
-            cursor: pointer; 
-            border: none; 
-            background: none; 
-            font-weight: bold;
-            padding: 0 5px;
-            line-height: 1;
-        }
+        .del-btn { color: #ff4d4d; font-size: 12px; cursor: pointer; border: none; background: none; font-weight: bold; padding: 0 5px; line-height: 1; }
         .del-btn:hover { color: #b30000; transform: scale(1.2); }
     </style>
 </head>
@@ -43,9 +32,10 @@
         const params = new URLSearchParams(window.location.search);
         const myName = params.get('user') || 'Guest';
 
-        // รายชื่อ Admin (แก้ไข/เพิ่มชื่อได้ที่นี่)
-        const adminList = ['mobyex'];
-        const isAdmin = adminList.includes(myName); && params.get('adminKey') === '8298';
+        const adminList = ['mobyex', 'changtdb'];
+        
+        // ตรวจสอบรหัสผ่านที่ส่งมาจาก Tampermonkey แบบเข้ารหัส
+        const isAdmin = adminList.includes(myName) && btoa(params.get('adminKey') || "") === "ODI5OA==";
 
         async function loadMsgs() {
             const { data, error } = await _supabase
@@ -58,7 +48,6 @@
             
             const log = document.getElementById('log');
             const html = data.reverse().map(m => {
-                // สิทธิ์การลบ: เป็นเจ้าของข้อความ หรือ เป็น Admin
                 const canDelete = (m.username === myName) || isAdmin;
                 const isMsgAdmin = adminList.includes(m.username);
                 
@@ -81,44 +70,24 @@
             const input = document.getElementById('msg');
             const text = input.value.trim();
             if (!text) return;
-            
-            const { error } = await _supabase
-                .from('messages')
-                .insert([{ username: myName, text: text }]);
-            
-            if (error) {
-                alert("ส่งไม่ได้: " + error.message);
-            } else {
-                input.value = '';
-                loadMsgs();
-            }
+            const { error } = await _supabase.from('messages').insert([{ username: myName, text: text }]);
+            if (error) alert("ส่งไม่ได้: " + error.message);
+            else { input.value = ''; loadMsgs(); }
         }
 
-        // ฟังก์ชันลบข้อความ (ลบทันที)
         async function deleteMsg(id) {
-            const { error } = await _supabase
-                .from('messages')
-                .delete()
-                .eq('id', id);
-            
-            if (error) {
-                console.error("ลบไม่สำเร็จ:", error.message);
-            }
-            // ไม่ต้องโหลดใหม่เพราะระบบ Realtime จะดักจับ Event DELETE ให้เอง
+            const { error } = await _supabase.from('messages').delete().eq('id', id);
+            if (error) console.error("ลบไม่สำเร็จ:", error.message);
         }
 
         document.getElementById('send-btn').onclick = send;
         document.getElementById('msg').onkeypress = (e) => { if(e.key === 'Enter') send(); };
 
-        // ระบบ Realtime (INSERT, UPDATE, DELETE)
         _supabase.channel('public:messages')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-                loadMsgs();
-            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { loadMsgs(); })
             .subscribe();
 
         loadMsgs();
     </script>
 </body>
 </html>
-
