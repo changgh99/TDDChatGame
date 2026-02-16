@@ -63,7 +63,7 @@
         
         const params = new URLSearchParams(window.location.search);
         const myName = params.get('user') || 'Guest';
-        const adminList = ['mobyex', 'changtdb'];
+        const adminList = ['mobyex'];
         const isAdmin = adminList.includes(myName) && btoa(params.get('adminKey') || "") === "ODI5OA==";
 
         const msgInput = document.getElementById('msg');
@@ -144,3 +144,4 @@
     </script>
 </body>
 </html>
+
